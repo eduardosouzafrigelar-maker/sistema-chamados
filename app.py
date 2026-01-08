@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 from datetime import datetime
 import time
+import pytz # <--- ADICIONADO
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Distribuidor de Chamados", page_icon="🎫")
@@ -36,6 +37,11 @@ try:
 except Exception as e:
     st.error(f"Erro: Não encontrei as abas 'Chamados' ou 'Colaboradores'. Detalhe: {e}")
     st.stop()
+
+# --- FUNÇÃO PARA PEGAR HORA CERTA (BRASIL) ---
+def hora_brasil():
+    fuso = pytz.timezone('America/Sao_Paulo')
+    return datetime.now(fuso).strftime("%d/%m/%Y %H:%M:%S")
 
 # --- TELA DE LOGIN ---
 if 'usuario' not in st.session_state:
@@ -112,7 +118,8 @@ else:
                     cell = aba_chamados.find(str(id_linha))
                     numero_da_linha = cell.row
                     
-                    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                    # AJUSTADO AQUI:
+                    agora = hora_brasil()
                     
                     # Atualiza Status e Data Fim
                     aba_chamados.update_cell(numero_da_linha, 3, "Concluido")
@@ -152,7 +159,8 @@ else:
                             cell = aba_chamados.find(str(id_do_chamado))
                             linha_para_editar = cell.row
                             
-                            agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                            # AJUSTADO AQUI:
+                            agora = hora_brasil()
                             
                             aba_chamados.update_cell(linha_para_editar, 3, "Em Andamento")
                             aba_chamados.update_cell(linha_para_editar, 4, usuario)
