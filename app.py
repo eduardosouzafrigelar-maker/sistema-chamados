@@ -40,16 +40,20 @@ def carregar_dados_planilha():
 # Carrega a conexão principal
 sh = conectar_google_sheets()
 
-try:
-    # MUDANÇA SOLICITADA: Pega pela ordem das abas
-    # 0 = A primeira aba (esquerda) -> Chamados
-    # 1 = A segunda aba -> Colaboradores
+st.write(f"📂 Arquivo Aberto: **{sh.title}**")
+lista_abas = sh.worksheets()
+nomes_abas = [a.title for a in lista_abas]
+
+st.write(f"📑 Abas encontradas ({len(nomes_abas)}): {nomes_abas}")
+
+if len(nomes_abas) < 2:
+    st.error("❌ O Robô parou porque precisa de pelo menos 2 abas.")
+    st.info("Vá no Google Sheets e clique no '+' para criar a segunda aba.")
+    st.stop()
+else:
     aba_chamados = sh.get_worksheet(0)
     aba_users = sh.get_worksheet(1)
-except:
-    st.error("❌ Erro grave: A planilha precisa ter pelo menos 2 abas!")
-    st.info("O sistema tenta pegar a 1ª aba para Chamados e a 2ª para Colaboradores.")
-    st.stop()
+    st.success("✅ Abas carregadas com sucesso!")
 
 # --- FUNÇÃO HORA BRASIL ---
 def hora_brasil():
@@ -183,4 +187,5 @@ else:
             if st.button("🔄 Atualizar Lista"):
                 st.cache_data.clear()
                 st.rerun()
+
 
