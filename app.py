@@ -18,11 +18,11 @@ def conectar_google_sheets():
         else:
             client = gspread.service_account(filename="credentials.json")
 
-        # ATENÇÃO: Certifique-se que este é o nome da planilha certa
+        # Conecta na planilha do PRIMEIRO sistema
         sheet = client.open("Sistema_Chamados") 
         return sheet
     except Exception as e:
-        st.error("Erro ao conectar no Google! Espere 1 minuto e recarregue.")
+        st.error("Erro ao conectar no Google! Verifique o nome da planilha ou a internet.")
         st.stop()
 
 # --- LEITURA INTELIGENTE (CACHE DE DADOS - ANTI-ERRO 429) ---
@@ -30,7 +30,7 @@ def conectar_google_sheets():
 def carregar_dados_planilha():
     sh = conectar_google_sheets()
     try:
-        # MUDANÇA AQUI: Pega a PRIMEIRA aba (Índice 0) independente do nome
+        # Pega a PRIMEIRA aba (Índice 0) independente do nome
         aba = sh.get_worksheet(0) 
         dados = aba.get_all_records()
         return pd.DataFrame(dados)
@@ -40,20 +40,16 @@ def carregar_dados_planilha():
 # Carrega a conexão principal
 sh = conectar_google_sheets()
 
-st.write(f"📂 Arquivo Aberto: **{sh.title}**")
-lista_abas = sh.worksheets()
-nomes_abas = [a.title for a in lista_abas]
-
-st.write(f"📑 Abas encontradas ({len(nomes_abas)}): {nomes_abas}")
-
-if len(nomes_abas) < 2:
-    st.error("❌ O Robô parou porque precisa de pelo menos 2 abas.")
-    st.info("Vá no Google Sheets e clique no '+' para criar a segunda aba.")
-    st.stop()
-else:
+try:
+    # --- ESTRATÉGIA POR POSIÇÃO (SEM DETETIVE) ---
+    # 0 = A primeira aba (esquerda) -> Chamados
+    # 1 = A segunda aba -> Colaboradores
     aba_chamados = sh.get_worksheet(0)
     aba_users = sh.get_worksheet(1)
-    st.success("✅ Abas carregadas com sucesso!")
+except:
+    st.error("❌ Erro: A planilha precisa ter pelo menos 2 abas.")
+    st.info("Crie a segunda aba clicando no '+' lá no Google Sheets.")
+    st.stop()
 
 # --- FUNÇÃO HORA BRASIL ---
 def hora_brasil():
@@ -95,7 +91,7 @@ else:
 
     if df.empty:
         st.warning("⚠️ Carregando dados ou planilha vazia...")
-        if st.button("Tentar recarregar agora"):
+        if st.button("Forçar Atualização"):
             st.cache_data.clear()
             st.rerun()
         st.stop()
@@ -106,7 +102,7 @@ else:
             (df['Responsavel'] == usuario)
         ]
     else:
-        st.error("Erro: As colunas 'Status' ou 'Responsavel' sumiram da 1ª aba.")
+        st.error("Erro: As colunas 'Status' ou 'Responsavel' não estão na 1ª aba.")
         st.stop()
 
     # --- CENÁRIO A: TEM CHAMADO ---
@@ -187,5 +183,6 @@ else:
             if st.button("🔄 Atualizar Lista"):
                 st.cache_data.clear()
                 st.rerun()
+
 
 
