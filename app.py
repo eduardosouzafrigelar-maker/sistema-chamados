@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Distribuidor de Chamados", page_icon="🎫")
 
-# --- CONEXÃO INTELIGENTE (CACHE DE RECURSO) ---
+# --- CONEXÃO INTELIGENTE ---
 @st.cache_resource
 def conectar_google_sheets():
     try:
@@ -18,43 +18,57 @@ def conectar_google_sheets():
         else:
             client = gspread.service_account(filename="credentials.json")
 
-        # Conecta na planilha do PRIMEIRO sistema
+        # ATENÇÃO: Verifique o nome da planilha aqui
         sheet = client.open("Sistema_Chamados") 
         return sheet
     except Exception as e:
-        st.error("Erro ao conectar no Google! Verifique o nome da planilha ou a internet.")
-        st.stop()
+        return None
 
-# --- LEITURA INTELIGENTE (CACHE DE DADOS - ANTI-ERRO 429) ---
-@st.cache_data(ttl=5)
-def carregar_dados_planilha():
-    sh = conectar_google_sheets()
-    try:
-        # Pega a PRIMEIRA aba (Índice 0) independente do nome
-        aba = sh.get_worksheet(0) 
-        dados = aba.get_all_records()
-        return pd.DataFrame(dados)
-    except Exception as e:
-        return pd.DataFrame()
-
-# Carrega a conexão principal
-sh = conectar_google_sheets()
-
-try:
-    # --- ESTRATÉGIA POR POSIÇÃO (SEM DETETIVE) ---
-    # 0 = A primeira aba (esquerda) -> Chamados
-    # 1 = A segunda aba -> Colaboradores
-    aba_chamados = sh.get_worksheet(0)
-    aba_users = sh.get_worksheet(1)
-except:
-    st.error("❌ Erro: A planilha precisa ter pelo menos 2 abas.")
-    st.info("Crie a segunda aba clicando no '+' lá no Google Sheets.")
-    st.stop()
-
-# --- FUNÇÃO HORA BRASIL ---
+# --- FUNÇÃO PARA PEGAR HORA CERTA (BRASIL) ---
 def hora_brasil():
     fuso = pytz.timezone('America/Sao_Paulo')
     return datetime.now(fuso).strftime("%d/%m/%Y %H:%M:%S")
+
+# --- LÓGICA DO "ROBÔ TEIMOSO" PARA CARREGAR ABAS ---
+# Tenta 5 vezes antes de desistir. Se o Google piscar, ele espera e tenta de novo.
+sh = conectar_google_sheets()
+aba_chamados = None
+aba_users = None
+
+if sh is None:
+    st.error("Erro total de conexão. Verifique sua internet ou o arquivo de credenciais.")
+    st.stop()
+
+# Loop da Teimosia (Tenta 5 vezes)
+for tentativa in range(5):
+    try:
+        # Tenta pegar as duas primeiras abas pela posição (0 e 1)
+        aba_chamados = sh.get_worksheet(0)
+        aba_users = sh.get_worksheet(1)
+        
+        # Se conseguiu pegar as duas sem dar erro, sai do loop
+        if aba_chamados and aba_users:
+            break
+    except:
+        # Se der erro, espera um pouco e tenta de novo
+        time.sleep(1)
+
+# Se depois de 5 tentativas ainda não conseguiu...
+if aba_chamados is None or aba_users is None:
+    st.error("❌ O sistema tentou conectar 5 vezes e falhou.")
+    st.warning("O Google Sheets está instável ou a planilha não tem 2 abas.")
+    st.info("Aguarde 1 minuto e atualize a página.")
+    st.stop()
+
+# --- LEITURA DE DADOS COM CACHE ---
+@st.cache_data(ttl=5)
+def carregar_dados():
+    try:
+        # Usa a aba que já carregamos lá em cima
+        dados = aba_chamados.get_all_records()
+        return pd.DataFrame(dados)
+    except:
+        return pd.DataFrame()
 
 # --- TELA DE LOGIN ---
 if 'usuario' not in st.session_state:
@@ -86,11 +100,11 @@ else:
     st.title(f"Olá, {usuario} 👋")
     st.divider()
 
-    # Leitura dos dados usando o Cache
-    df = carregar_dados_planilha()
+    # Leitura dos dados
+    df = carregar_dados()
 
     if df.empty:
-        st.warning("⚠️ Carregando dados ou planilha vazia...")
+        st.warning("⚠️ Lendo dados... Se travar, clique abaixo.")
         if st.button("Forçar Atualização"):
             st.cache_data.clear()
             st.rerun()
@@ -173,7 +187,7 @@ else:
                         time.sleep(0.5)
                         st.rerun()
                     except:
-                        st.error("Erro ao atribuir.")
+                        st.error("Erro ao atribuir. Tente de novo.")
                 else:
                     st.warning("Alguém foi mais rápido!")
                     time.sleep(2)
@@ -183,6 +197,7 @@ else:
             if st.button("🔄 Atualizar Lista"):
                 st.cache_data.clear()
                 st.rerun()
+
 
 
 
