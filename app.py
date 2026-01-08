@@ -18,37 +18,37 @@ def conectar_google_sheets():
         else:
             client = gspread.service_account(filename="credentials.json")
 
-        # DICA: Se puder, troque o nome pelo ID da planilha para ser mais rápido
-        # sheet = client.open_by_key("COLE_O_ID_DA_PLANILHA_AQUI")
+        # ATENÇÃO: Certifique-se que este é o nome da planilha certa
         sheet = client.open("Sistema_Chamados") 
         return sheet
     except Exception as e:
         st.error("Erro ao conectar no Google! Espere 1 minuto e recarregue.")
         st.stop()
 
-# --- LEITURA INTELIGENTE (CACHE DE DADOS - A SOLUÇÃO DO ERRO 429) ---
-# O TTL=5 significa: "Só vá no Google se a última leitura foi há mais de 5 segundos"
+# --- LEITURA INTELIGENTE (CACHE DE DADOS - ANTI-ERRO 429) ---
 @st.cache_data(ttl=5)
 def carregar_dados_planilha():
     sh = conectar_google_sheets()
     try:
-        aba = sh.worksheet("Chamados")
+        # MUDANÇA AQUI: Pega a PRIMEIRA aba (Índice 0) independente do nome
+        aba = sh.get_worksheet(0) 
         dados = aba.get_all_records()
         return pd.DataFrame(dados)
     except Exception as e:
-        # Se der erro de cota, retorna um DataFrame vazio para não quebrar tudo
         return pd.DataFrame()
 
 # Carrega a conexão principal
 sh = conectar_google_sheets()
 
 try:
-    # A aba de usuários muda pouco, então não precisa de cache agressivo
-    aba_users = sh.worksheet("Colaboradores")
-    # A aba de chamados usamos a função especial lá de cima
-    aba_chamados = sh.worksheet("Chamados")
+    # MUDANÇA SOLICITADA: Pega pela ordem das abas
+    # 0 = A primeira aba (esquerda) -> Chamados
+    # 1 = A segunda aba -> Colaboradores
+    aba_chamados = sh.get_worksheet(0)
+    aba_users = sh.get_worksheet(1)
 except:
-    st.error("Erro ao achar as abas.")
+    st.error("❌ Erro grave: A planilha precisa ter pelo menos 2 abas!")
+    st.info("O sistema tenta pegar a 1ª aba para Chamados e a 2ª para Colaboradores.")
     st.stop()
 
 # --- FUNÇÃO HORA BRASIL ---
@@ -86,13 +86,13 @@ else:
     st.title(f"Olá, {usuario} 👋")
     st.divider()
 
-    # AQUI ESTÁ O SEGREDO: Usamos a função com Cache
+    # Leitura dos dados usando o Cache
     df = carregar_dados_planilha()
 
     if df.empty:
-        st.warning("⚠️ O sistema está lendo muitos dados ou a planilha está vazia. Aguarde alguns segundos...")
+        st.warning("⚠️ Carregando dados ou planilha vazia...")
         if st.button("Tentar recarregar agora"):
-            st.cache_data.clear() # Limpa o cache para forçar leitura
+            st.cache_data.clear()
             st.rerun()
         st.stop()
 
@@ -102,7 +102,7 @@ else:
             (df['Responsavel'] == usuario)
         ]
     else:
-        st.error("Erro nas colunas da planilha.")
+        st.error("Erro: As colunas 'Status' ou 'Responsavel' sumiram da 1ª aba.")
         st.stop()
 
     # --- CENÁRIO A: TEM CHAMADO ---
@@ -121,7 +121,6 @@ else:
         
         if st.button("✅ FINALIZAR", type="primary"):
             try:
-                # Aqui limpamos o cache para garantir que vamos escrever na linha certa
                 st.cache_data.clear()
                 
                 cell = aba_chamados.find(str(id_linha))
@@ -146,10 +145,9 @@ else:
 
         if qtd > 0:
             if st.button("📥 PEGAR PRÓXIMO"):
-                # Limpa cache para garantir que ninguém pegou o chamado 1 segundo atrás
                 st.cache_data.clear()
                 
-                # Recarrega direto da fonte (sem cache) para garantir
+                # Recarrega direto da fonte
                 dados_reais = aba_chamados.get_all_records()
                 df_real = pd.DataFrame(dados_reais)
                 
@@ -182,7 +180,7 @@ else:
                     st.rerun()
         else:
             st.success("Sem chamados na fila.")
-            # Botão para atualizar a lista manualmente se a pessoa quiser ver se chegou algo
             if st.button("🔄 Atualizar Lista"):
                 st.cache_data.clear()
                 st.rerun()
+
