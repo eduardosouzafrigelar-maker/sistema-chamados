@@ -72,7 +72,7 @@ def carregar_dados():
 
 # --- TELA DE LOGIN ---
 if 'usuario' not in st.session_state:
-    st.title("🎫 Login")
+    st.title("🎫 PRIORIDADES QUALITOR")
     try:
         lista_nomes = aba_users.col_values(1)[1:] 
     except:
@@ -197,6 +197,7 @@ else:
             if st.button("🔄 Atualizar Lista"):
                 st.cache_data.clear()
                 st.rerun()
+
 
 
 
